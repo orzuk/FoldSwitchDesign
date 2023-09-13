@@ -1,4 +1,6 @@
 # Some utilities for proteins and their mutations
+import pandas as pd
+
 
 def genetic_code():
     """Return the standard genetic code as a dictionary."""
@@ -43,6 +45,42 @@ def aa_to_codon(aa, genetic_code_dict):
 def aa_point_mutation_to_aa(aa, genetic_code_dict):
     return list(set([j for l in [point_mutation_to_aa(c, genetic_code_dict) for c in aa_to_codon(aa, genetic_code_dict)] for j in l]))
 
+
+# Run design on every position, collect
+def design_every_position(S, pdbID):
+    n = len(S) # get number of amino-acids
+    S_des = ['']*n # The output designed sequence
+    for i in range(n):  # loop on positions
+        cur_S = run_design(S, pdbID, i)  # run design function using ProteinMPNN, keeping all positions fixed except i
+        S_des[i] = cur_S[i]  # change the i-th letter of the i-th protein
+    S_des = "".join(S_des) # convert to string
+    return S_des
+
+
+# Run design to both A and B, then fold both of them with alpha-fold. See if we get something closer
+def compare_designs(S, pdbID1, pdbID2):
+    S1 = design_every_position(S, pdbID1)
+    S2 = design_every_position(S, pdbID2)
+
+    # Compare sequences:
+    print("\nS: ", S, "\nS1: ", S1, "\nS2: ", S2)
+
+    AF = Alphafold(S)  # Fold the natural sequence
+    AF1 = Alphafold(S1)  # Fold the first one
+    AF2 = Alphafold(S2)  # Fold the second one
+
+    TM = ['TM1', 'TM2']
+    SEQ = ['S', 'S1', 'S2']
+    df_tm = pd.DataFrame(columns=TM, index=SEQ)
+    S_true_list = [pdbID1, pdbID2]
+    S_pred_list = [AF, AF1, AF2]
+    for i_true in range(2):   # loop on the two true structures
+        for j_pred in range(3):  # S_predicted in [AF, AF1, AF2]:  # loop on the three predicted structures
+            df_tm[TM[i_true]][SEQ[j_pred]] = TMScore(S_true_list[i_true], S_pred_list[j_pred])  # Compute TMScore similarity
+
+    print(df_tm)
+    return df_tm, S, S1, S2, AF, AF1, AF2  # Return all sequences, structures and their similarity
+
 # Example usage:
 print("Hello")
 genetic_code_dict = genetic_code()
@@ -58,3 +96,6 @@ for c in codon_list:
 
 for aa in aa_list:
     print(aa,  aa_point_mutation_to_aa(aa, genetic_code_dict))
+
+
+

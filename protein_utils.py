@@ -32,6 +32,17 @@ def point_mutation_to_aa(codon, genetic_code_dict):
             aa_mut_list.append(genetic_code_dict.get(codon[:pos] + s + codon[pos+1:]))
     return list(set(aa_mut_list))
 
+
+# Get all codons that code for a specific amino-acid
+def aa_to_codon(aa, genetic_code_dict):
+    return [x for x in genetic_code_dict if genetic_code_dict[x] == aa]
+
+
+# Get all aa that can be obtained by a single point mutation from a given aa,
+# where we don't know the codon
+def aa_point_mutation_to_aa(aa, genetic_code_dict):
+    return list(set([j for l in [point_mutation_to_aa(c, genetic_code_dict) for c in aa_to_codon(aa, genetic_code_dict)] for j in l]))
+
 # Example usage:
 print("Hello")
 genetic_code_dict = genetic_code()
@@ -44,3 +55,6 @@ print(f'The amino acid corresponding to {codon} is {amino_acid}')
 
 for c in codon_list:
     print(c, genetic_code_dict.get(c), point_mutation_to_aa(c, genetic_code_dict))
+
+for aa in aa_list:
+    print(aa,  aa_point_mutation_to_aa(aa, genetic_code_dict))

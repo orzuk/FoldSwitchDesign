@@ -1,5 +1,6 @@
 # Some utilities for proteins and their mutations
 import pandas as pd
+import tmscoring   # for comparing structures
 
 
 def genetic_code():
@@ -76,7 +77,9 @@ def compare_designs(S, pdbID1, pdbID2):
     S_pred_list = [AF, AF1, AF2]
     for i_true in range(2):   # loop on the two true structures
         for j_pred in range(3):  # S_predicted in [AF, AF1, AF2]:  # loop on the three predicted structures
-            df_tm[TM[i_true]][SEQ[j_pred]] = TMScore(S_true_list[i_true], S_pred_list[j_pred])  # Compute TMScore similarity
+#            df_tm[TM[i_true]][SEQ[j_pred]] = TMScore(S_true_list[i_true], S_pred_list[j_pred])  # Compute TMScore similarity
+            alignment = tmscoring.TMscoring(S_true_list[i_true], S_pred_list[j_pred]) #  'structure1.pdb', 'structure2.pdb')  # from installed tmscoring
+            df_tm[TM[i_true]][SEQ[j_pred]] = alignment.tmscore(**alignment.get_current_values())
 
     print(df_tm)
     return df_tm, S, S1, S2, AF, AF1, AF2  # Return all sequences, structures and their similarity

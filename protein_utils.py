@@ -1,6 +1,10 @@
 # Some utilities for proteins and their mutations
 import pandas as pd
 import tmscoring   # for comparing structures
+from Bio import Phylo  # for phylogenetic trees
+from Bio.Phylo.TreeConstruction import DistanceCalculator
+from Bio import AlignIO
+from TreeConstruction import DistanceTreeConstructor
 
 
 def genetic_code():
@@ -101,4 +105,6 @@ for aa in aa_list:
     print(aa,  aa_point_mutation_to_aa(aa, genetic_code_dict))
 
 
-
+# MEthods for phylogentic reconstruction 
+# constructor = DistanceTreeConstructor()
+# tree = constructor.nj(dm)

@@ -1,5 +1,5 @@
 # Pipeline for clustering alignemnts, predicting contacts for each cluster and comparing them
-# Goal is to identify evidence fro difference in co-evolution in the different clusters,
+# Goal is to identify evidence for difference in co-evolution in the different clusters,
 # possible indicative of differences in the structure
 import numpy as np
 import pandas as pd
@@ -33,14 +33,17 @@ def cluster_MSAs(MSA, clust_params):
     '../AF_cluster/data_sep2022/00_KaiB/2QKEE_colabfold.a3m -o subsampled_MSAs'  # change later to input MSA
     subprocess.call(AF_cluster_str)
 
+    subprocess.call('python hello.py')
 
 # Compute pairwise distances between the different contact maps
 def compute_cmap_distances(cmap):
     D = 0
     n_maps = len(cmap)  # number of clusters/contact maps
 
-    # Code here
-    return D
+    for i in range(n_maps): # Code here
+        for j in range(i, n_maps):
+            D = D+ sum(cmap[i] - cmap[j])**2
+    return 2*D/(n_maps*(n_maps-1))  # normalize 
 
 
 # Compute pairwise distances between the different contact maps

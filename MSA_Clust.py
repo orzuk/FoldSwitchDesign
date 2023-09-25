@@ -4,6 +4,20 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import sys
+import os
+import argparse
+import hashlib
+import jax
+import jax.numpy as jnp
+import re
+import subprocess
+from glob import glob
+from Bio import SeqIO
+
+sys.path.append('alphafold')
+
+
 
 
 # Run clustering of the Multiple Sequence alignemnts,
@@ -14,10 +28,16 @@ def cluster_MSAs(MSA, clust_params):
 
     return MSA_cluster  # an object containing the partition of the MSA into multiple clusters
 
+    # USe AF-cluster script
+    AF_cluster_str = 'python ../AF_cluster/scripts/ClusterMSA.py EX -i ' + \
+    '../AF_cluster/data_sep2022/00_KaiB/2QKEE_colabfold.a3m -o subsampled_MSAs'  # change later to input MSA
+    subprocess.call(AF_cluster_str)
+
 
 # Compute pairwise distances between the different contact maps
 def compute_cmap_distances(cmap):
     D = 0
+    n_maps = len(cmap)  # number of clusters/contact maps
 
     # Code here
     return D

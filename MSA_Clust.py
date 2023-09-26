@@ -14,10 +14,9 @@ import re
 import subprocess
 from glob import glob
 from Bio import SeqIO
+from Bio.Align import AlignInfo
 
 sys.path.append('alphafold')
-
-
 
 
 # Run clustering of the Multiple Sequence alignemnts,
@@ -26,14 +25,21 @@ sys.path.append('alphafold')
 def cluster_MSAs(MSA, clust_params):
     # Run ClusterMSA script (??)
 
-    return MSA_cluster  # an object containing the partition of the MSA into multiple clusters
-
     # USe AF-cluster script
     AF_cluster_str = 'python ../AF_cluster/scripts/ClusterMSA.py EX -i ' + \
     '../AF_cluster/data_sep2022/00_KaiB/2QKEE_colabfold.a3m -o subsampled_MSAs'  # change later to input MSA
     subprocess.call(AF_cluster_str)
 
-    subprocess.call('python hello.py')
+    clusters_dir = "../AF_Cluster/subsampled_MSAs"
+    clusters_file_names = dir(clusters_dir + "/EX_*a3m")
+    n_clusters = len(clusters_file_names)
+    MSA_clusters = []  # replace by reading from output file
+    for i in range(n_clusters):
+        MSA_clusters[i] = load(clusters_file_names[i])
+
+#    subprocess.call('python hello.py') # small check
+    return MSA_clusters  # an object containing the partition of the MSA into multiple clusters
+
 
 # Compute pairwise distances between the different contact maps
 def compute_cmap_distances(cmap):
@@ -42,15 +48,16 @@ def compute_cmap_distances(cmap):
 
     for i in range(n_maps): # Code here
         for j in range(i, n_maps):
-            D = D+ sum(cmap[i] - cmap[j])**2
-    return 2*D/(n_maps*(n_maps-1))  # normalize 
+            D = D + sum(cmap[i] - cmap[j])**2
+    return 2*D/(n_maps*(n_maps-1))  # normalize
 
 
 # Compute pairwise distances between the different contact maps
 def compute_seq_distances(MSA_clust):
     D = 0
 
-    # Code here
+    summary_align = AlignInfo.SummaryInfo(MSA_clust[i])
+    PSSM = summary_align.MSA_clust.pos_specific_score_matrix() # Code here
 
     return D
 

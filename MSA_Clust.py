@@ -11,10 +11,15 @@ import hashlib
 import jax
 import jax.numpy as jnp
 import re
+from polyleven import levenshtein
+
 import subprocess
 from glob import glob
 from Bio import SeqIO
 from Bio.Align import AlignInfo
+from Bio import AlignIO
+
+#import glob
 
 sys.path.append('alphafold')
 
@@ -31,11 +36,13 @@ def cluster_MSAs(MSA, clust_params):
     subprocess.call(AF_cluster_str)
 
     clusters_dir = "../AF_Cluster/subsampled_MSAs"
-    clusters_file_names = dir(clusters_dir + "/EX_*a3m")
+    clusters_file_names = glob(clusters_dir + "/EX_*a3m")
     n_clusters = len(clusters_file_names)
-    MSA_clusters = []  # replace by reading from output file
+    print(n_clusters)
+    MSA_clusters = [None]*n_clusters  # replace by reading from output file
     for i in range(n_clusters):
-        MSA_clusters[i] = load(clusters_file_names[i])
+        MSA_clusters[i] = AlignIO.read(open(clusters_file_names[i]), "fasta")
+
 
 #    subprocess.call('python hello.py') # small check
     return MSA_clusters  # an object containing the partition of the MSA into multiple clusters
@@ -55,11 +62,17 @@ def compute_cmap_distances(cmap):
 # Compute pairwise distances between the different contact maps
 def compute_seq_distances(MSA_clust):
     D = 0
+    n_clusters = len(MSA_clust)
 
-    summary_align = AlignInfo.SummaryInfo(MSA_clust[i])
-    PSSM = summary_align.MSA_clust.pos_specific_score_matrix() # Code here
+    for i in range(n_clusters):
+        summary_align = AlignInfo.SummaryInfo(MSA_clust[i])
+        PSSM = summary_align.MSA_clust.pos_specific_score_matrix()  # Code here
 
-    return D
+    avg_dist_to_query = np.mean([1-levenshtein(x, query_['sequence'].iloc[0])/L for x in df.loc[df.dbscan_label==-1]['sequence'].tolist()])
+    lprint('avg identity to query of unclustered: %.2f' % avg_dist_to_query,f)
+
+
+    return D  # average seqeunce distance between
 
 
 # Predict if a family of proteins is fold-switching or is having a single structure,
@@ -94,3 +107,64 @@ def predict_fold_switch_pipeline(MSAs_dir, clust_params):
 
 
 
+
+# Taken from here:
+# https://stackoverflow.com/questions/76682974/similarity-score-sequence-alignment
+def lev_distance_matrix(seqs):
+    """Calculate Levenshtein distance and ratio metrics
+       on input pair of strings.
+    """
+    seqs = sorted(seqs)
+
+    return {
+        seqs[0]: {
+            seqs[1]: {
+                "distance": pylev.distance(*seqs),
+                "ratio": pylev.ratio(*seqs),
+            }
+        }
+    }
+
+
+t_init = time.time()
+
+print(
+    f"\n:::------|Levenshteins|----->__BEGIN__:::\n\t\t@{t_init} s"
+)
+
+
+seqs = sorted(
+    [
+        "".join(random.choices(DNA, k=random.randint(12, 16)))
+        for _ in range(20)
+    ]
+)
+
+all_seq_pairs = set(
+    sorted(
+        list(
+            itl.chain.from_iterable(
+                [[(s1, s2) for s1 in seqs] for s2 in seqs]
+            )
+        )
+    )
+)
+
+print("\n".join(seqs))
+print(len(all_seq_pairs))
+
+seq_sim_results = list(map(lev_distance_matrix, all_seq_pairs))
+
+
+# Test code for levinshtein:
+chain_r = defaultdict(lambda: {})
+for n, r in enumerate(seq_sim_results):
+    for i, (k1, v1) in enumerate(r.items()):
+        for j, (k2, v2) in enumerate(v1.items()):
+            chain_r[k1][k2] = v2["ratio"]
+            chain_r[k2][k1] = v2["ratio"]
+
+
+print(
+    f"\n:::------|Levenshteins|----->_COMPLETE_:::\n\t\tRequired {time.time() - t_init} s"
+)

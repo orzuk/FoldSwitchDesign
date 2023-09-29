@@ -67,18 +67,31 @@ def compute_cmap_distances(cmap):
     return 2*D/(n_maps*(n_maps-1))  # normalize
 
 
-# Compute pairwise distances between the different contact maps
+# Compute pairwise distances between the different clusters
 def compute_seq_distances(MSA_clust):
-    D = 0
     n_clusters = len(MSA_clust)
+    D = np.zeros((n_clusters, n_clusters))
 
-    for i in range(n_clusters):
-        summary_align = AlignInfo.SummaryInfo(MSA_clust[i])
-        PSSM = summary_align.MSA_clust.pos_specific_score_matrix()  # Code here
+#    for i in range(n_clusters):
+#        summary_align = AlignInfo.SummaryInfo(MSA_clust[i])
+#        PSSM = summary_align.MSA_clust.pos_specific_score_matrix()  # Code here
+#
+#    avg_dist_to_query = np.mean([1-levenshtein(x, query_['sequence'].iloc[0])/L for x in df.loc[df.dbscan_label==-1]['sequence'].tolist()])
+#    lprint('avg identity to query of unclustered: %.2f' % avg_dist_to_query,f)
 
-    avg_dist_to_query = np.mean([1-levenshtein(x, query_['sequence'].iloc[0])/L for x in df.loc[df.dbscan_label==-1]['sequence'].tolist()])
-    lprint('avg identity to query of unclustered: %.2f' % avg_dist_to_query,f)
 
+    max_seq_per_cluster = 10  # maximum number of sequences per cluster
+    for i in range(n_clusters):  # loop on pairs of clusters
+        for j in range(i, n_clusters):
+            n_i = len(MSA_clust[i])
+            n_j = len(MSA_clust[j])
+            II = random.sample(range(n_i), min(n_i, max_seq_per_cluster))
+            JJ = random.sample(range(n_j), min(n_j, max_seq_per_cluster))
+
+            for seq_i in II:
+                for seq_j in JJ:
+                    D[i,j] += levenshtein(str(MSA_clust[i][seq_i].seq), str(MSA_clust[j][seq_j].seq))
+            D[i,j] = D[i,j] / (len(II)*len(JJ))  # normalize
 
     return D  # average seqeunce distance between
 
@@ -89,12 +102,13 @@ def predict_fold_switch_from_MSA_cluster(MSA, clust_params):
 
     MSA_clust = cluster_MSAs(MSA, clust_params)  # first cluster the MSAs
     n_clust = len(MSA_clust)  # number of clusters (can be set as a parameter)
+    print("Compute sequence similarity:")
+    seq_dist = compute_seq_distances(MSA_clust)  # sequence similarity of clusters
 
+    cmap = [None]*n_clust
     for i in range(n_clust):  # loop on clusters
         cmap[i] = MSA_transformer(MSA_clust[i])  # compute pairwise attention map for cluster
-
     cmap_dist = compute_cmap_distances(cmap)  # similarity of cluster contact maps
-    seq_dist = compute_seq_distances(MSA_clust)  # sequence similarity of clusters
 
     fold_switch_pred_y = (cmap_dist - clust_params@beta * seq_dist > 0)  # replace by a learned function
 
@@ -134,45 +148,9 @@ def lev_distance_matrix(seqs):
     }
 
 
+# Main: test
 t_init = time.time()
 
-print(
-    f"\n:::------|Levenshteins|----->__BEGIN__:::\n\t\t@{t_init} s"
-)
+#cluster_MSAs([], [])
 
-
-seqs = sorted(
-    [
-        "".join(random.choices(DNA, k=random.randint(12, 16)))
-        for _ in range(20)
-    ]
-)
-
-all_seq_pairs = set(
-    sorted(
-        list(
-            itl.chain.from_iterable(
-                [[(s1, s2) for s1 in seqs] for s2 in seqs]
-            )
-        )
-    )
-)
-
-print("\n".join(seqs))
-print(len(all_seq_pairs))
-
-seq_sim_results = list(map(lev_distance_matrix, all_seq_pairs))
-
-
-# Test code for levinshtein:
-chain_r = defaultdict(lambda: {})
-for n, r in enumerate(seq_sim_results):
-    for i, (k1, v1) in enumerate(r.items()):
-        for j, (k2, v2) in enumerate(v1.items()):
-            chain_r[k1][k2] = v2["ratio"]
-            chain_r[k2][k1] = v2["ratio"]
-
-
-print(
-    f"\n:::------|Levenshteins|----->_COMPLETE_:::\n\t\tRequired {time.time() - t_init} s"
-)
+predict_fold_switch_from_MSA_cluster([], [])

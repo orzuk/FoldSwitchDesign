@@ -1,6 +1,9 @@
 # Pipeline for clustering alignemnts, predicting contacts for each cluster and comparing them
 # Goal is to identify evidence for difference in co-evolution in the different clusters,
 # possible indicative of differences in the structure
+import esm
+import torch
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -25,7 +28,8 @@ from Bio import AlignIO
 
 import itertools as itl
 
-from collections import defaultdict
+import seaborn as sns
+
 
 #import glob
 
@@ -93,7 +97,7 @@ def compute_seq_distances(MSA_clust):
                     D[i,j] += levenshtein(str(MSA_clust[i][seq_i].seq), str(MSA_clust[j][seq_j].seq))
             D[i,j] = D[i,j] / (len(II)*len(JJ))  # normalize
 
-    return D  # average seqeunce distance between
+    return D  # average sequence distance between
 
 
 # Predict if a family of proteins is fold-switching or is having a single structure,
@@ -105,6 +109,11 @@ def predict_fold_switch_from_MSA_cluster(MSA, clust_params):
     print("Compute sequence similarity:")
     seq_dist = compute_seq_distances(MSA_clust)  # sequence similarity of clusters
 
+    # Plot distance matrix
+    df_seq_distances = pd.DataFrame(seq_dist).sort_index().sort_index(axis=1)
+    sns.heatmap(df_seq_distances)
+    from collections import defaultdict
+
     cmap = [None]*n_clust
     for i in range(n_clust):  # loop on clusters
         cmap[i] = MSA_transformer(MSA_clust[i])  # compute pairwise attention map for cluster
@@ -113,6 +122,21 @@ def predict_fold_switch_from_MSA_cluster(MSA, clust_params):
     fold_switch_pred_y = (cmap_dist - clust_params@beta * seq_dist > 0)  # replace by a learned function
 
     return fold_switch_pred_y, cmap_dist, seq_dist
+
+
+# Compute attention map using MSA transformer
+def MSA_transformer(MSA):
+    model, alphabet = esm.pretrained.esm2_t33_650M_UR50D()
+    batch_converter = alphabet.get_batch_converter()
+    model.eval()  # disables dropout for deterministic results
+
+    batch_labels, batch_strs, batch_tokens = batch_converter(MSA)
+    batch_lens = (batch_tokens != alphabet.padding_idx).sum(1)
+
+    with torch.no_grad():
+        results = model(batch_tokens, repr_layers=[33], return_contacts=True)
+    token_representations = results["representations"][33]
+
 
 
 # Run pipeline on a bunch of families (MSAs can be given, or read from file

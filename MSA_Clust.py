@@ -30,9 +30,6 @@ import itertools as itl
 
 import seaborn as sns
 
-
-#import glob
-
 sys.path.append('alphafold')
 
 
@@ -43,9 +40,10 @@ def cluster_MSAs(MSA, clust_params):
     # Run ClusterMSA script (??)
 
     # USe AF-cluster script
-    AF_cluster_str = 'python ../AF_cluster/scripts/ClusterMSA.py EX -i ' + \
-    '../AF_cluster/data_sep2022/00_KaiB/2QKEE_colabfold.a3m -o subsampled_MSAs'  # change later to input MSA
-    subprocess.call(AF_cluster_str)
+    if clust_params == True:  # Run clustering
+        AF_cluster_str = 'python ../AF_cluster/scripts/ClusterMSA.py EX -i ' + \
+        '../AF_cluster/data_sep2022/00_KaiB/2QKEE_colabfold.a3m -o subsampled_MSAs'  # change later to input MSA
+        subprocess.call(AF_cluster_str)
 
     clusters_dir = "../AF_Cluster/subsampled_MSAs"
     clusters_file_names = glob(clusters_dir + "/EX_*a3m")
@@ -96,6 +94,7 @@ def compute_seq_distances(MSA_clust):
                 for seq_j in JJ:
                     D[i,j] += levenshtein(str(MSA_clust[i][seq_i].seq), str(MSA_clust[j][seq_j].seq))
             D[i,j] = D[i,j] / (len(II)*len(JJ))  # normalize
+            D[j,i] = D[i,j]  # make symmetric
 
     return D  # average sequence distance between
 
@@ -103,7 +102,6 @@ def compute_seq_distances(MSA_clust):
 # Predict if a family of proteins is fold-switching or is having a single structure,
 # from the co-evolutionary patterns of the MSA
 def predict_fold_switch_from_MSA_cluster(MSA, clust_params):
-
     MSA_clust = cluster_MSAs(MSA, clust_params)  # first cluster the MSAs
     n_clust = len(MSA_clust)  # number of clusters (can be set as a parameter)
     print("Compute sequence similarity:")
@@ -112,8 +110,10 @@ def predict_fold_switch_from_MSA_cluster(MSA, clust_params):
     # Plot distance matrix
     df_seq_distances = pd.DataFrame(seq_dist).sort_index().sort_index(axis=1)
     sns.heatmap(df_seq_distances)
-    from collections import defaultdict
+    plt.show()  # display the plot
 
+    from collections import defaultdict
+    print("Compute cmap and their similarities:")
     cmap = [None]*n_clust
     for i in range(n_clust):  # loop on clusters
         cmap[i] = MSA_transformer(MSA_clust[i])  # compute pairwise attention map for cluster
@@ -126,18 +126,37 @@ def predict_fold_switch_from_MSA_cluster(MSA, clust_params):
 
 # Compute attention map using MSA transformer
 def MSA_transformer(MSA):
+    print("Load model:")
     model, alphabet = esm.pretrained.esm2_t33_650M_UR50D()
+    print("Batch convert:")
     batch_converter = alphabet.get_batch_converter()
+    print("Model eval:")
     model.eval()  # disables dropout for deterministic results
 
+    print("Get tokens:")
     batch_labels, batch_strs, batch_tokens = batch_converter(MSA)
+    print("Get tokens:")
     batch_lens = (batch_tokens != alphabet.padding_idx).sum(1)
 
+    print("Get results:")
     with torch.no_grad():
         results = model(batch_tokens, repr_layers=[33], return_contacts=True)
+    print("Token representations:")
     token_representations = results["representations"][33]
 
+    return token_representations
+# load numpy array:
+# np.loadtxt('/Users/steveabecassis/Desktop/PipelineTest/output_pipeline_1jfk/esm_cmap_output/msa_t__cluster_000.npy')
 
+
+
+# Plot the true vs. predicted contact map, predict for each contact if it is:
+# 1. present in both
+# 2. Presnet in first
+# 3. Present in second
+# 4. Absent
+def match_predicted_and_true_contact_maps(cmap_clusters, cmap_true):
+    return []
 
 # Run pipeline on a bunch of families (MSAs can be given, or read from file
 # or generated on the fly)
@@ -177,4 +196,4 @@ t_init = time.time()
 
 #cluster_MSAs([], [])
 
-predict_fold_switch_from_MSA_cluster([], [])
+predict_fold_switch_from_MSA_cluster([], False)

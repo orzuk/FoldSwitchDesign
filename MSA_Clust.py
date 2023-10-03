@@ -4,6 +4,20 @@
 import esm
 import torch
 
+from typing import List, Tuple, Optional, Dict, NamedTuple, Union, Callable
+import itertools
+import os
+import string
+from pathlib import Path
+
+import matplotlib as mpl
+from Bio import SeqIO
+import biotite.structure as bs
+from biotite.structure.io.pdbx import PDBxFile, get_structure
+from biotite.database import rcsb
+from tqdm import tqdm
+
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -29,6 +43,7 @@ from Bio import AlignIO
 import itertools as itl
 
 import seaborn as sns
+from protein_utils import *
 
 sys.path.append('alphafold')
 
@@ -124,35 +139,81 @@ def predict_fold_switch_from_MSA_cluster(MSA, clust_params):
     return fold_switch_pred_y, cmap_dist, seq_dist
 
 
+# Convert MSAs to string format, where each sequence is a tuple of two,
+# to serve as input for MSA transformer
+def MSA_to_str_format(MSAs):
+    num_msas = len(MSAs)
+    MSAs_str = [None]*num_msas
+
+    for i in range(num_msas):
+        MSAs_str[i] = [None] * len(MSAs[i])
+        for j in range(len(MSAs[i])):
+            MSAs_str[i][j] = (MSAs[2][1].name, str(MSAs[i][j].seq))
+
+    return MSAs_str
+
+
+#contacts = {
+#    name: contacts_from_pdb(structure, chain="A")
+#    for name, structure in structures.items()
+#}
+
+
 # Compute attention map using MSA transformer
-def MSA_transformer(MSA):
+def MSA_transformer(MSAs, true_contacts = {}):
+    msa_transformer, msa_transformer_alphabet = esm.pretrained.esm_msa1b_t12_100M_UR50S()
+#    msa_transformer = msa_transformer.eval().cuda()  # if cude is available
+    msa_transformer = msa_transformer.eval()
+    msa_transformer_batch_converter = msa_transformer_alphabet.get_batch_converter()
+
     print("Load model:")
-    model, alphabet = esm.pretrained.esm2_t33_650M_UR50D()
+#    msa_transformer, msa_transformer_alphabet = esm.pretrained.esm2_t33_650M_UR50D()
     print("Batch convert:")
-    batch_converter = alphabet.get_batch_converter()
+    batch_converter = msa_transformer_alphabet.get_batch_converter()
     print("Model eval:")
-    model.eval()  # disables dropout for deterministic results
+    msa_transformer = msa_transformer.eval().cuda()
+#    model.eval()  # disables dropout for deterministic results
 
     print("Get tokens:")
-    batch_labels, batch_strs, batch_tokens = batch_converter(MSA)
-    print("Get tokens:")
-    batch_lens = (batch_tokens != alphabet.padding_idx).sum(1)
+    msa_transformer_batch_converter = msa_transformer_alphabet.get_batch_converter()
+
+#    batch_labels, batch_strs, batch_tokens = batch_converter(MSA)
+#    print("Get tokens:")
+#    batch_lens = (batch_tokens != alphabet.padding_idx).sum(1)
 
     print("Get results:")
-    with torch.no_grad():
-        results = model(batch_tokens, repr_layers=[33], return_contacts=True)
+    msa_transformer_predictions = {}
+    msa_transformer_results = []
+    for name, inputs in MSAs.items():  # Get list of MSAs
+#        inputs = greedy_select(inputs, num_seqs=128)  # can change this to pass more/fewer sequences
+        msa_transformer_batch_labels, msa_transformer_batch_strs, msa_transformer_batch_tokens = msa_transformer_batch_converter(
+            [inputs])  # should accept list of tuples ???
+        msa_transformer_batch_tokens = msa_transformer_batch_tokens.to(next(msa_transformer.parameters()).device)
+        msa_transformer_predictions[name] = msa_transformer.predict_contacts(msa_transformer_batch_tokens)[0].cpu()
+        metrics = {"id": name, "model": "MSA Transformer (Unsupervised)"}
+        if(len(true_contacts)>0): # if there are true contacts
+            metrics.update(evaluate_prediction(msa_transformer_predictions[name], true_contacts[name]))
+        msa_transformer_results.append(metrics)
+    msa_transformer_results = pd.DataFrame(msa_transformer_results)
     print("Token representations:")
-    token_representations = results["representations"][33]
+    display(msa_transformer_results)
 
-    return token_representations
+
+#    with torch.no_grad():
+#        results = model(batch_tokens, repr_layers=[33], return_contacts=True)
+#    token_representations = results["representations"][33]
+#    return token_representations
+
+    return msa_transformer_predictions, msa_transformer_results  # return compact and detailed results
+
 # load numpy array:
 # np.loadtxt('/Users/steveabecassis/Desktop/PipelineTest/output_pipeline_1jfk/esm_cmap_output/msa_t__cluster_000.npy')
 
 
 
 # Plot the true vs. predicted contact map, predict for each contact if it is:
-# 1. present in both
-# 2. Presnet in first
+# 1. Present in both
+# 2. Present in first
 # 3. Present in second
 # 4. Absent
 def match_predicted_and_true_contact_maps(cmap_clusters, cmap_true):
@@ -194,6 +255,6 @@ def lev_distance_matrix(seqs):
 # Main: test
 t_init = time.time()
 
-#cluster_MSAs([], [])
+#MSA_clust = cluster_MSAs([], False)
 
 predict_fold_switch_from_MSA_cluster([], False)
